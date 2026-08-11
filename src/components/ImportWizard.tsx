@@ -10,7 +10,13 @@ import { Field, Modal } from './ui'
 
 interface FileStatus { file: File; status: 'waiting' | 'processing' | 'review' | 'saved' | 'error'; message?: string }
 
-export function ImportWizard({ onClose, onSaved }: { onClose: () => void; onSaved: (shopId: string) => void }) {
+interface ImportWizardProps {
+  initialShopId?: string
+  onClose: () => void
+  onSaved: (shopId: string) => void
+}
+
+export function ImportWizard({ initialShopId, onClose, onSaved }: ImportWizardProps) {
   const shops = useLiveQuery(() => db.shops.toArray(), []) ?? []
   const settings = useLiveQuery(() => db.settings.get('app'), [])
   const [files, setFiles] = useState<FileStatus[]>([])
@@ -43,7 +49,9 @@ export function ImportWizard({ onClose, onSaved }: { onClose: () => void; onSave
       const hash = await sha256(entry.file)
       const duplicate = Boolean(await db.sourceFiles.where('hash').equals(hash).first())
       const inspected = await inspectFile(entry.file, shops, duplicate, (value, status) => { setProgress(Math.max(0, Math.min(1, value))); setProgressText(translateStatus(status)) })
-      entry.status = 'review'; setFiles([...current]); setDraft(inspected); running.current = false
+      const initialShop = initialShopId ? shops.find((shop) => shop.id === initialShopId) : undefined
+      const contextualDraft = initialShop ? { ...inspected, shopId: initialShop.id, amountCents: initialShop.defaultAmountCents } : inspected
+      entry.status = 'review'; setFiles([...current]); setDraft(contextualDraft); running.current = false
     } catch (error) {
       entry.status = 'error'; entry.message = error instanceof Error ? error.message : 'Datei konnte nicht verarbeitet werden.'; setFiles([...current]); await processNext(current, index + 1)
     }

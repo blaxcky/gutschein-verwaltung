@@ -15,6 +15,7 @@ function AppShell() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [importOpen, setImportOpen] = useState(false)
+  const [initialImportShopId, setInitialImportShopId] = useState<string>()
   const [toast, setToast] = useState('')
   const [pin, setPin] = useState('')
   const [pinError, setPinError] = useState('')
@@ -43,25 +44,41 @@ function AppShell() {
     try { await unlockWithPin(pin, settings); setLocked(false); setPin(''); setPinError('') } catch (error) { setPinError(error instanceof Error ? error.message : 'Entsperren fehlgeschlagen.') }
   }
 
+  function openImport(shopId?: string) {
+    setInitialImportShopId(shopId)
+    setImportOpen(true)
+  }
+
+  function closeImport() {
+    setImportOpen(false)
+    setInitialImportShopId(undefined)
+  }
+
+  function finishImport(shopId: string) {
+    closeImport()
+    setToast('Gutschein sicher gespeichert.')
+    navigate(`/shops/${shopId}`)
+  }
+
   if (locked) return <main className="lock-screen"><div className="lock-box"><div className="lock-mark"><ArchiveBox size={32} weight="duotone" /></div><p className="eyebrow" style={{ color: '#b7d2c8' }}>Lokal geschützt</p><h1>Gutscheinbox entsperren</h1><p style={{ color: '#b7c3be', marginBottom: 28 }}>Deine Gutscheincodes sind auf diesem Gerät verschlüsselt.</p><input className="input" type="password" inputMode="numeric" autoFocus value={pin} onChange={(event) => setPin(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && unlock()} placeholder="App-PIN" aria-label="App-PIN" />{pinError && <p className="error" style={{ marginTop: 10 }}>{pinError}</p>}<button className="primary wide" style={{ marginTop: 14 }} onClick={unlock}>Entsperren</button></div></main>
 
   return <div className="app">
     <Routes>
       <Route path="/" element={<ShopsScreen />} />
-      <Route path="/shops/:shopId" element={<ShopDetailScreen />} />
+      <Route path="/shops/:shopId" element={<ShopDetailScreen onImport={openImport} />} />
       <Route path="/voucher/:voucherId" element={<VoucherScreen notify={setToast} />} />
       <Route path="/verify" element={<VerifyScreen notify={setToast} />} />
       <Route path="/archive" element={<ArchiveScreen notify={setToast} />} />
       <Route path="/settings" element={<SettingsScreen notify={setToast} onLock={() => setLocked(true)} />} />
     </Routes>
-    {pathname === '/' && <button className="fab" onClick={() => setImportOpen(true)}><Plus size={21} weight="bold" /> Import</button>}
+    {pathname === '/' && <button className="fab" onClick={() => openImport()}><Plus size={21} weight="bold" /> Import</button>}
     <nav className="bottom-nav" aria-label="Hauptnavigation">
       <NavLink to="/" end className="nav-item"><Storefront size={22} />Shops</NavLink>
       <NavLink to="/verify" className="nav-item"><Scan size={22} />Prüfen</NavLink>
       <NavLink to="/archive" className="nav-item"><ArchiveBox size={22} />Archiv</NavLink>
       <NavLink to="/settings" className="nav-item"><Gear size={22} />Einstellungen</NavLink>
     </nav>
-    {importOpen && <ImportWizard onClose={() => setImportOpen(false)} onSaved={(shopId) => { setImportOpen(false); setToast('Gutschein sicher gespeichert.'); navigate(`/shops/${shopId}`) }} />}
+    {importOpen && <ImportWizard initialShopId={initialImportShopId} onClose={closeImport} onSaved={finishImport} />}
     {settings && !settings.offlineReady && <div className="modal-backdrop"><section className="modal" role="status"><div className="modal-handle" /><p className="eyebrow">Ersteinrichtung</p><h2>Offline-Komponenten werden geladen</h2><p className="subtle">App, Schriften, Barcode-Modul, PDF-Worker und OCR-Sprachdaten werden auf diesem Gerät vorbereitet.</p><div className="progress-track"><div className="progress-bar" style={{ transform: 'scaleX(.72)' }} /></div></section></div>}
     {toast && <div className="toast" role="status">{toast}</div>}
   </div>

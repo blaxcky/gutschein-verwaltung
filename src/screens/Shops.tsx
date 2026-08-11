@@ -27,7 +27,7 @@ export function ShopsScreen() {
   </main>
 }
 
-export function ShopDetailScreen() {
+export function ShopDetailScreen({ onImport }: { onImport: (shopId: string) => void }) {
   const { shopId = '' } = useParams()
   const navigate = useNavigate()
   const [editing, setEditing] = useState(false)
@@ -42,7 +42,7 @@ export function ShopDetailScreen() {
     <header className="page-head"><button className="back-button" onClick={() => navigate(-1)} aria-label="Zurück"><CaretLeft size={22} /></button><button className="icon-button" onClick={() => setEditing(true)} aria-label="Shop bearbeiten"><PencilSimple size={21} /></button></header>
     <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}><ShopAvatar shop={shop} /><div><p className="eyebrow">Shop</p><h1 style={{ fontSize: '2.35rem' }}>{shop.name}</h1></div></div>
     <section className="summary"><div className="summary-main"><span className="label">Verfügbar</span><strong>{formatMoney(balance)}</strong></div><div className="summary-side"><span className="label">Aktiv</span><strong>{sorted.filter((voucher) => voucher.status === 'active').length}</strong></div></section>
-    <div className="section-title"><h2>Gutscheine</h2></div>
+    <div className="section-title"><h2>Gutscheine</h2><button className="text-button section-action" onClick={() => onImport(shop.id)} aria-label={`Gutschein für ${shop.name} importieren`}><Plus size={17} /> Importieren</button></div>
     {sorted.length === 0 ? <EmptyState icon={<Ticket size={34} weight="duotone" />} title="Keine Gutscheine" text="Importiere ein Bild oder PDF. Vor dem Speichern kannst du jeden Treffer prüfen." /> : <div className="list">{sorted.map((voucher, index) => <Link className={`list-row tap ${voucher.remainingAmountCents === 0 ? 'muted' : ''}`} style={{ '--i': index } as React.CSSProperties} key={voucher.id} to={`/voucher/${voucher.id}`}><div className="shop-image"><Ticket size={25} /></div><div><span className="row-title">{voucher.number ? `•••• ${voucher.number.slice(-4)}` : voucher.barcodeFormat || 'Gutschein'}</span><span className="row-meta">{voucher.status === 'verification_pending' ? 'Guthaben prüfen' : new Date(voucher.createdAt).toLocaleDateString('de-AT')}</span></div><span className="row-value">{formatMoney(voucher.remainingAmountCents)}</span></Link>)}</div>}
     {editing && <ShopEditor shop={shop} onClose={() => setEditing(false)} onDeleted={() => navigate('/')} />}
   </main>
