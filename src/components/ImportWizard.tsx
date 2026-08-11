@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { CheckCircle, FileArrowUp, WarningCircle, XCircle } from '@phosphor-icons/react'
+import { CheckCircle, FileArrowUp, FilePdf, Image, WarningCircle, XCircle } from '@phosphor-icons/react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db'
 import type { ImportDraft, SourceFile, Voucher } from '../types'
@@ -92,7 +92,19 @@ export function ImportWizard({ onClose, onSaved }: { onClose: () => void; onSave
       <div className="progress-track"><div className="progress-bar" style={{ transform: `scaleX(${progress})` }} /></div><p className="subtle" style={{ marginTop: 8 }}>{progressText}</p>
       <div className="list">{files.map((entry) => <div className="list-row" key={`${entry.file.name}-${entry.file.lastModified}`} style={{ gridTemplateColumns: '40px 1fr' }}>{entry.status === 'error' ? <XCircle size={24} color="var(--danger)" /> : entry.status === 'saved' ? <CheckCircle size={24} color="var(--accent)" /> : <FileArrowUp size={24} />}<div><span className="row-title">{entry.file.name}</span><span className="row-meta">{statusText(entry)} · {(entry.file.size / 1024 / 1024).toFixed(1)} MB</span></div></div>)}</div>
       <button className="secondary wide" onClick={cancel}>Verarbeitung abbrechen</button>
-    </> : <label className="dropzone"><FileArrowUp size={36} weight="duotone" /><strong style={{ marginTop: 10 }}>Bilder oder PDFs auswählen</strong><span className="subtle">Mehrfachauswahl möglich. Die Verarbeitung erfolgt nacheinander und nur auf diesem Gerät.</span><input type="file" multiple accept="image/*,application/pdf" onChange={(event) => select(event.target.files)} /></label>}
+    </> : <div className="import-options">
+      <label className="import-option">
+        <span className="import-option-icon"><Image size={28} weight="duotone" /></span>
+        <span><strong>Bilder auswählen</strong><span className="row-meta">Mehrere Bilder möglich</span></span>
+        <input type="file" multiple accept="image/*" onChange={(event) => select(event.target.files)} />
+      </label>
+      <label className="import-option">
+        <span className="import-option-icon"><FilePdf size={28} weight="duotone" /></span>
+        <span><strong>PDF auswählen</strong><span className="row-meta">Mehrere PDF-Dateien möglich</span></span>
+        <input type="file" multiple accept="application/pdf" onChange={(event) => select(event.target.files)} />
+      </label>
+      <p className="subtle import-note">Die Verarbeitung erfolgt nacheinander und nur auf diesem Gerät.</p>
+    </div>}
   </Modal>
 }
 
