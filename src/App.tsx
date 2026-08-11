@@ -17,7 +17,6 @@ function AppShell() {
   const [toast, setToast] = useState('')
   const [pin, setPin] = useState('')
   const [pinError, setPinError] = useState('')
-  const [applyUpdate, setApplyUpdate] = useState<null | ((reloadPage?: boolean) => Promise<void>)>(null)
   const settings = useLiveQuery(() => db.settings.get('app'))
   const [locked, setLocked] = useState(false)
 
@@ -37,11 +36,6 @@ function AppShell() {
     return () => document.removeEventListener('visibilitychange', onVisibility)
   }, [settings?.pinEnabled])
   useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(''), 2800); return () => clearTimeout(timer) }, [toast])
-  useEffect(() => {
-    const onUpdate = (event: Event) => setApplyUpdate(() => (event as CustomEvent<(reloadPage?: boolean) => Promise<void>>).detail)
-    window.addEventListener('gutscheinbox-update', onUpdate)
-    return () => window.removeEventListener('gutscheinbox-update', onUpdate)
-  }, [])
 
   async function unlock() {
     if (!settings) return
@@ -69,7 +63,6 @@ function AppShell() {
     {importOpen && <ImportWizard onClose={() => setImportOpen(false)} onSaved={(shopId) => { setImportOpen(false); setToast('Gutschein sicher gespeichert.'); navigate(`/shops/${shopId}`) }} />}
     {settings && !settings.offlineReady && <div className="modal-backdrop"><section className="modal" role="status"><div className="modal-handle" /><p className="eyebrow">Ersteinrichtung</p><h2>Offline-Komponenten werden geladen</h2><p className="subtle">App, Schriften, Barcode-Modul, PDF-Worker und OCR-Sprachdaten werden auf diesem Gerät vorbereitet.</p><div className="progress-track"><div className="progress-bar" style={{ transform: 'scaleX(.72)' }} /></div></section></div>}
     {toast && <div className="toast" role="status">{toast}</div>}
-    {applyUpdate && <div className="toast update-toast" role="status"><span>Eine neue Version ist bereit.</span><button onClick={() => applyUpdate(true)}>Jetzt laden</button></div>}
   </div>
 }
 

@@ -34,11 +34,30 @@ export function extractCandidates(text: string): DetectionCandidate[] {
   const compact = text.replace(/[–—]/g, '-')
   const candidates: DetectionCandidate[] = []
   const labelled = [
-    { label: 'PIN' as const, regex: /(?:pin|code)\s*[:#-]?\s*([A-Z0-9-]{4,16})/gi },
+    { label: 'PIN' as const, regex: /(?:\bpin(?:\s*-?\s*code)?|\bcode)\s*[:#-]?\s*([A-Z0-9-]{4,16})/gi },
     { label: 'Nummer' as const, regex: /(?:gutschein(?:nummer)?|kartennummer|card\s*(?:no|number)|nummer)\s*[:#-]?\s*([A-Z0-9 -]{6,30})/gi }
   ]
   for (const item of labelled) {
     for (const match of compact.matchAll(item.regex)) candidates.push({ value: match[1].trim().replace(/\s{2,}/g, ' '), label: item.label, confidence: 0.88, source: 'Beschrifteter Text' })
+  }
+  if (!candidates.some((candidate) => candidate.label === 'PIN')) {
+    const longNumberRanges = [...compact.matchAll(/(?<!\d)\d(?:[ \t-]*\d){4,}(?!\d)/g)]
+      .map((match) => ({ start: match.index, end: match.index + match[0].length }))
+    const unlabelledPins = [...compact.matchAll(/(?<!\d)\d{4}(?!\d)/g)]
+      .filter((match) => {
+        const start = match.index
+        const end = start + match[0].length
+        if (longNumberRanges.some((range) => start >= range.start && end <= range.end)) return false
+
+        const before = compact.slice(Math.max(0, start - 24), start)
+        const after = compact.slice(end, end + 16)
+        const moneyBefore = /(?:€|\b(?:eur|euro)|\b(?:betrag|wert|guthaben)\s*:?)[ \t]*$/i.test(before)
+        const moneyAfter = /^(?:[.,]\d{2})?[ \t]*(?:€|(?:eur|euro)\b)/i.test(after)
+        return !moneyBefore && !moneyAfter
+      })
+      .map((match) => match[0])
+    const distinctPins = [...new Set(unlabelledPins)]
+    if (distinctPins.length === 1) candidates.push({ value: distinctPins[0], label: 'PIN', confidence: 0.42, source: 'Unbeschrifteter Viersteller' })
   }
   if (!candidates.some((candidate) => candidate.label === 'Nummer')) {
     const fallback = compact.match(/\b(?:\d[ -]?){10,22}\b/)

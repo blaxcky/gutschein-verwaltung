@@ -1,10 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Trash } from '@phosphor-icons/react'
 import { db } from '../db'
 import type { Shop } from '../types'
 import { parseMoney, uid } from '../lib/logic'
 import { Field, Modal } from './ui'
 
-export function ShopEditor({ shop, onClose }: { shop?: Shop; onClose: () => void }) {
+export function ShopEditor({ shop, onClose, onDeleted }: { shop?: Shop; onClose: () => void; onDeleted?: () => void }) {
   const [name, setName] = useState(shop?.name ?? '')
   const [terms, setTerms] = useState(shop?.detectionTerms.join(', ') ?? '')
   const [amount, setAmount] = useState(((shop?.defaultAmountCents ?? 10000) / 100).toFixed(2).replace('.', ','))
@@ -12,6 +13,8 @@ export function ShopEditor({ shop, onClose }: { shop?: Shop; onClose: () => void
   const [image, setImage] = useState<Blob | undefined>(shop?.image)
   const [imageUrl, setImageUrl] = useState<string>()
   const [error, setError] = useState('')
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     if (!image) return
@@ -31,13 +34,49 @@ export function ShopEditor({ shop, onClose }: { shop?: Shop; onClose: () => void
     onClose()
   }
 
-  async function deleteShop() {
+  async function requestDelete() {
     if (!shop) return
-    const voucherCount = await db.vouchers.where('shopId').equals(shop.id).count()
-    if (voucherCount) return setError('Dieser Shop wird noch von Gutscheinen verwendet und kann nicht gelöscht werden.')
-    await db.shops.delete(shop.id)
-    onClose()
+    setError('')
+    try {
+      const voucher = await db.vouchers.where('shopId').equals(shop.id).first()
+      if (voucher) return setError('Dieser Shop hat noch einen zugeordneten Gutschein und kann nicht gelöscht werden.')
+      setConfirmingDelete(true)
+    } catch {
+      setError('Die Gutscheine konnten nicht geprüft werden. Der Shop wurde nicht verändert.')
+    }
   }
+
+  async function confirmDelete() {
+    if (!shop || deleting) return
+    setDeleting(true)
+    setError('')
+    try {
+      const deleted = await db.deleteShopIfUnused(shop.id)
+      if (!deleted) {
+        setError('Dieser Shop hat noch einen zugeordneten Gutschein und kann nicht gelöscht werden.')
+        return
+      }
+      if (onDeleted) onDeleted()
+      else onClose()
+    } catch {
+      setError('Der Shop konnte nicht gelöscht werden. Es wurden keine Daten verändert.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  if (shop && confirmingDelete) return <Modal title="Shop löschen" onClose={onClose}>
+    <div className="delete-confirmation">
+      <div className="delete-confirmation-icon"><Trash size={28} weight="duotone" /></div>
+      <h3>„{shop.name}“ wirklich löschen?</h3>
+      <p className="subtle">Der Shop wird dauerhaft von diesem Gerät entfernt. Gutscheine werden dabei niemals gelöscht.</p>
+      {error && <p className="error" role="alert">{error}</p>}
+      <div className="button-row">
+        <button className="secondary" type="button" disabled={deleting} onClick={() => { setConfirmingDelete(false); setError('') }}>Abbrechen</button>
+        <button className="danger-button" type="button" disabled={deleting} onClick={confirmDelete}>{deleting ? 'Wird gelöscht …' : 'Shop löschen'}</button>
+      </div>
+    </div>
+  </Modal>
 
   return <Modal title={shop ? 'Shop bearbeiten' : 'Shop anlegen'} onClose={onClose}>
     <form onSubmit={save}>
@@ -50,9 +89,9 @@ export function ShopEditor({ shop, onClose }: { shop?: Shop; onClose: () => void
       <Field label="Erkennungsbegriffe" helper="Mehrere Begriffe mit Komma trennen."><input className="input" value={terms} onChange={(event) => setTerms(event.target.value)} placeholder="Moser, Buchgutschein" /></Field>
       <Field label="Standardbetrag"><input className="input numeric" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} /></Field>
       <Field label="Link zur Guthabenprüfung" helper="Optional. Wird erst auf ausdrücklichen Klick geöffnet."><input className="input" type="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://…" /></Field>
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
       <div className="button-row"><button className="secondary" type="button" onClick={onClose}>Abbrechen</button><button className="primary" type="submit">Speichern</button></div>
-      {shop && <button className="danger-button wide" style={{ marginTop: 10 }} type="button" onClick={deleteShop}>Unbenutzten Shop löschen</button>}
+      {shop && <button className="danger-button wide" style={{ marginTop: 10 }} type="button" onClick={requestDelete}><Trash size={18} /> Shop löschen</button>}
     </form>
   </Modal>
 }

@@ -29,6 +29,40 @@ describe('recognition suggestions', () => {
     expect(values.find((item) => item.label === 'Nummer')?.confidence).toBeGreaterThan(.8)
     expect(values.find((item) => item.label === 'PIN')?.value).toBe('AX72')
   })
+  it.each([
+    ['PIN Code: 2414', '2414'],
+    ['PIN-Code: 5729', '5729'],
+    ['PIN: AX72', 'AX72'],
+    ['Code: 8642', '8642']
+  ])('extracts the PIN from %s', (text, expected) => {
+    expect(extractCandidates(text).find((item) => item.label === 'PIN')?.value).toBe(expected)
+  })
+  it('suggests the sole unlabelled four-digit value with low confidence', () => {
+    const pin = extractCandidates('LIDL Geschenkkarte\nKartennummer 1234 5678 9012 3456\n0515').find((item) => item.label === 'PIN')
+    expect(pin).toMatchObject({ value: '0515', source: 'Unbeschrifteter Viersteller' })
+    expect(pin?.confidence).toBeLessThan(.5)
+  })
+  it('keeps leading zeroes and accepts repetitions of the same value', () => {
+    expect(extractCandidates('0515\nKontrollfeld 0515').find((item) => item.label === 'PIN')?.value).toBe('0515')
+  })
+  it('prefers a labelled PIN over other four-digit values', () => {
+    const pins = extractCandidates('Filiale 1234\nPIN Code: 2414').filter((item) => item.label === 'PIN')
+    expect(pins).toHaveLength(1)
+    expect(pins[0]).toMatchObject({ value: '2414', source: 'Beschrifteter Text' })
+  })
+  it('does not suggest ambiguous unlabelled four-digit values', () => {
+    expect(extractCandidates('Filiale 1234\nBeleg 5678').some((item) => item.label === 'PIN')).toBe(false)
+  })
+  it.each([
+    'Barcode 1234567890123',
+    'Gutscheinnummer 1234 5678 9012 3456',
+    'Wert: 1000 EUR',
+    '€ 2500',
+    'Betrag: 1500',
+    'Guthaben 1200,00 €'
+  ])('does not use long numbers or money as an unlabelled PIN: %s', (text) => {
+    expect(extractCandidates(text).some((item) => item.label === 'PIN')).toBe(false)
+  })
 })
 
 describe('undo bookkeeping', () => {

@@ -18,6 +18,15 @@ export class GutscheinboxDB extends Dexie {
       settings: 'id'
     })
   }
+
+  async deleteShopIfUnused(shopId: string): Promise<boolean> {
+    return this.transaction('rw', this.shops, this.vouchers, async () => {
+      const shop = await this.shops.get(shopId)
+      if (!shop || await this.vouchers.where('shopId').equals(shopId).first()) return false
+      await this.shops.delete(shopId)
+      return true
+    })
+  }
 }
 
 export const db = new GutscheinboxDB()

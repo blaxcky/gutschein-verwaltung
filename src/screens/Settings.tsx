@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react'
-import { CloudArrowDown, CloudArrowUp, LockKey, ShieldCheck } from '@phosphor-icons/react'
+import { ArrowClockwise, CloudArrowDown, CloudArrowUp, LockKey, ShieldCheck } from '@phosphor-icons/react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db'
 import { createBackup, readBackup, restoreBackup, type BackupPayload } from '../lib/backup'
 import { configurePin, encryptBlob, encryptText, lockVault } from '../lib/crypto'
+import { usePwaUpdate } from '../pwa/update'
 import { Field, Modal } from '../components/ui'
 
 type Dialog = 'pin' | 'backup' | 'restore' | null
@@ -18,6 +19,7 @@ export function SettingsScreen({ notify, onLock }: { notify: (message: string) =
   const [restoreFile, setRestoreFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<BackupPayload | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const { updateAvailable, updating, error: updateError, installUpdate } = usePwaUpdate()
 
   function resetDialog() { setDialog(null); setPassword(''); setConfirm(''); setError(''); setRestoreFile(null); setPreview(null) }
   async function enablePin() {
@@ -43,6 +45,7 @@ export function SettingsScreen({ notify, onLock }: { notify: (message: string) =
   function lock() { lockVault(); onLock() }
 
   return <main className="page"><header className="page-head"><div><p className="eyebrow">Gerät & Daten</p><h1>Einstellungen</h1><span className="offline-pill"><ShieldCheck size={16} weight="fill" /> Offline bereit</span></div></header>
+    {updateAvailable && <section className="settings-group update-group" aria-labelledby="update-heading"><div className="settings-row update-available"><div><strong id="update-heading">Neue Version verfügbar</strong><p>Die neue Version ist vollständig geladen. Deine Shops, Gutscheine und Einstellungen bleiben erhalten.</p>{updateError && <p className="error" role="alert">{updateError}</p>}</div><button className="primary update-button" disabled={updating} onClick={installUpdate}><ArrowClockwise size={18} className={updating ? 'updating-icon' : undefined} />{updating ? 'Wird aktualisiert …' : 'Jetzt aktualisieren'}</button></div></section>}
     <section className="settings-group"><h2>Sicherheit</h2><div className="settings-row"><div><strong>App-PIN</strong><p>Schützt Codes und neue Originaldateien mit AES-GCM. Es gibt keine PIN-Wiederherstellung.</p></div>{settings?.pinEnabled ? <button className="secondary" onClick={lock}><LockKey size={18} /> Sperren</button> : <button className="secondary" onClick={() => setDialog('pin')}>Aktivieren</button>}</div></section>
     <section className="settings-group"><h2>Backup</h2><div className="settings-row"><div><strong>Komplett-Backup</strong><p>{counts?.shops ?? 0} Shops, {counts?.vouchers ?? 0} Gutscheine und alle Originaldateien.</p></div><button className="icon-button" onClick={() => setDialog('backup')} aria-label="Backup erstellen"><CloudArrowDown size={21} /></button></div><div className="settings-row"><div><strong>Backup wiederherstellen</strong><p>Vorhandene Einträge werden über ihre IDs sicher zusammengeführt.</p></div><button className="icon-button" onClick={() => { setDialog('restore'); setTimeout(() => fileRef.current?.click(), 100) }} aria-label="Backup wiederherstellen"><CloudArrowUp size={21} /></button></div></section>
     <section className="settings-group"><h2>Über Gutscheinbox</h2><div className="settings-row"><div><strong>Vollständig lokal</strong><p>Version 1.0 · Keine Cloud, kein Konto, kein Tracking.</p></div></div></section>

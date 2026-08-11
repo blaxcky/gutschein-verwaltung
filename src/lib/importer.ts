@@ -93,8 +93,11 @@ export async function inspectFile(file: File, shops: Shop[], duplicate: boolean,
   const candidates = extractCandidates(result.text)
   if (result.barcodeValue) candidates.unshift({ value: result.barcodeValue, label: 'Barcode', confidence: 0.96, source: `Seite ${result.sourcePage}` })
   const number = candidates.find((candidate) => candidate.label === 'Nummer')?.value ?? result.barcodeValue
-  const pin = candidates.find((candidate) => candidate.label === 'PIN')?.value ?? ''
-  const confidence = Math.round(100 * Math.min(result.barcodeValue ? 0.96 : 0.7, (shop ? 0.18 : 0) + (number ? 0.58 : 0) + (pin ? 0.16 : 0)))
+  const pinCandidate = candidates.find((candidate) => candidate.label === 'PIN')
+  const pin = pinCandidate?.value ?? ''
+  const pinContribution = pinCandidate ? 0.16 * (pinCandidate.confidence / 0.88) : 0
+  const confidenceLimit = result.barcodeValue ? 0.96 : pinCandidate?.source === 'Unbeschrifteter Viersteller' ? 0.62 : 0.7
+  const confidence = Math.round(100 * Math.min(confidenceLimit, (shop ? 0.18 : 0) + (number ? 0.58 : 0) + pinContribution))
   return { file, hash, duplicate, ...result, shopId: shop?.id ?? '', number, pin, amountCents: shop?.defaultAmountCents ?? 10000, confidence, candidates }
 }
 

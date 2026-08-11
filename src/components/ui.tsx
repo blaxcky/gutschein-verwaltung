@@ -1,14 +1,15 @@
 import type { ReactNode } from 'react'
 import { X } from '@phosphor-icons/react'
+import { createPortal } from 'react-dom'
 
 export function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
-  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return createPortal(<div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section className="modal" role="dialog" aria-modal="true" aria-label={title}>
       <div className="modal-handle" />
       <header className="modal-head"><div><p className="eyebrow">Gutscheinbox</p><h2>{title}</h2></div><button className="icon-button" onClick={onClose} aria-label="Schließen"><X size={21} /></button></header>
       {children}
     </section>
-  </div>
+  </div>, document.body)
 }
 
 export function Field({ label, helper, error, children }: { label: string; helper?: string; error?: string; children: ReactNode }) {
