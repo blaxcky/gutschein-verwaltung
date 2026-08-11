@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Archive as ArchiveBox, Gear, Plus, Scan, Storefront } from '@phosphor-icons/react'
-import { NavLink, Route, Routes, useNavigate } from 'react-router-dom'
+import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, ensureSettings } from './db'
 import { isUnlocked, lockVault, unlockWithPin } from './lib/crypto'
@@ -13,6 +13,7 @@ import { VoucherScreen } from './screens/Voucher'
 
 function AppShell() {
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const [importOpen, setImportOpen] = useState(false)
   const [toast, setToast] = useState('')
   const [pin, setPin] = useState('')
@@ -53,7 +54,7 @@ function AppShell() {
       <Route path="/archive" element={<ArchiveScreen notify={setToast} />} />
       <Route path="/settings" element={<SettingsScreen notify={setToast} onLock={() => setLocked(true)} />} />
     </Routes>
-    <button className="fab" onClick={() => setImportOpen(true)}><Plus size={21} weight="bold" /> Import</button>
+    {pathname === '/' && <button className="fab" onClick={() => setImportOpen(true)}><Plus size={21} weight="bold" /> Import</button>}
     <nav className="bottom-nav" aria-label="Hauptnavigation">
       <NavLink to="/" end className="nav-item"><Storefront size={22} />Shops</NavLink>
       <NavLink to="/verify" className="nav-item"><Scan size={22} />Prüfen</NavLink>
