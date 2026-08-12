@@ -34,7 +34,7 @@ export function VoucherScreen({ notify }: { notify: (message: string) => void })
     if (!revealed.barcode) return
     let currentUrl = ''
     const format = normalizeFormat(voucher?.barcodeFormat)
-    writeBarcodeToImageFile(revealed.barcode, { format, width: 760, height: format === 'QRCode' ? 760 : 230, quietZone: 18 }).then((result) => {
+    writeBarcodeToImageFile(revealed.barcode, { format, width: 760, height: format === 'QRCode' ? 760 : 330, quietZone: 18 }).then((result) => {
       if (result.image) { currentUrl = URL.createObjectURL(result.image); setBarcodeUrl(currentUrl) }
     }).catch(() => setBarcodeUrl(''))
     return () => { if (currentUrl) URL.revokeObjectURL(currentUrl) }
