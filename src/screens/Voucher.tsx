@@ -59,7 +59,7 @@ export function VoucherScreen({ notify }: { notify: (message: string) => void })
   return <main className="page">
     <header className="page-head"><button className="back-button" onClick={() => navigate(-1)} aria-label="Zurück"><CaretLeft size={22} /></button><button className="icon-button" onClick={() => setHistoryOpen(true)} aria-label="Verlauf"><Receipt size={21} /></button></header>
     <p className="eyebrow">{shop?.name ?? 'Gutschein'}</p><h1 style={{ fontSize: '2.3rem' }}>Bereit zum Scannen</h1>
-    <section className="barcode-zone" aria-label="Scanbereich">{barcodeUrl ? <img src={barcodeUrl} alt={`${voucher.barcodeFormat || 'Barcode'} zum Scannen`} /> : <div className="barcode-fallback">{revealed.barcode || revealed.number || 'Kein Barcode erkannt'}</div>}</section>
+    <section className="barcode-zone" aria-label="Scanbereich">{barcodeUrl ? <img src={barcodeUrl} alt={`${voucher.barcodeFormat || 'Barcode'} zum Scannen`} /> : <div className="barcode-fallback"><strong>{revealed.number || 'Keine Nummer hinterlegt'}</strong>{!revealed.barcode && <span>Kein scanbarer Code erkannt</span>}</div>}</section>
     <section className="balance-hero"><span>Restguthaben</span><strong className="numeric">{formatMoney(voucher.remainingAmountCents)}</strong></section>
     <SecretRow label="Nummer" value={revealed.number} onCopy={() => copy(revealed.number, 'Nummer')} />
     <SecretRow label="PIN" value={revealed.pin} onCopy={() => copy(revealed.pin, 'PIN')} />

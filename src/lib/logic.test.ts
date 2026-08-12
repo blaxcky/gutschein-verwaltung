@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Shop, Transaction, Voucher } from '../types'
-import { applyExpense, canUndo, extractCandidates, matchShop, parseMoney, sortVouchers } from './logic'
+import { applyExpense, barcodeStorageFields, canUndo, extractCandidates, isImportValid, matchShop, parseMoney, selectVoucherNumber, sortVouchers } from './logic'
 
 const voucher = (overrides: Partial<Voucher> = {}): Voucher => ({ id: 'v', shopId: 's', number: '123', pin: '', barcodeValue: '', barcodeFormat: '', initialAmountCents: 10000, remainingAmountCents: 10000, status: 'active', confidence: 90, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', ...overrides })
 
@@ -28,6 +28,26 @@ describe('recognition suggestions', () => {
     const values = extractCandidates('Gutscheinnummer: 9988 7766 5544\nPIN: AX72')
     expect(values.find((item) => item.label === 'Nummer')?.confidence).toBeGreaterThan(.8)
     expect(values.find((item) => item.label === 'PIN')?.value).toBe('AX72')
+  })
+  it('does not mistake prose beginning with Gutscheine for a voucher number', () => {
+    expect(selectVoucherNumber('Die PDF-Gutscheine sind ab sofort verfügbar.')).toBe('')
+  })
+  it.each([
+    'Karten-Nr. 0126924863847602',
+    'Karten-Nr.: 0126924863847602',
+    'Kartennummer: 0126924863847602',
+    'Gutscheinnummer: 0126924863847602',
+    'Gutschein-Nr.: 0126924863847602'
+  ])('recognizes supported number labels: %s', (text) => {
+    expect(selectVoucherNumber(text)).toBe('0126924863847602')
+  })
+  it('prefers an OCR number contained in the full barcode without shortening the barcode', () => {
+    const barcode = '0109100000963389210126924863847602'
+    expect(selectVoucherNumber('Gutscheinnummer: 9999999999\n0126924863847602', barcode)).toBe('0126924863847602')
+    expect(barcode).toBe('0109100000963389210126924863847602')
+  })
+  it('keeps a plausible labelled number even when the barcode is independent', () => {
+    expect(selectVoucherNumber('Gutscheinnummer: AB-123456', 'QR:independent-payload')).toBe('AB123456')
   })
   it.each([
     ['PIN Code: 2414', '2414'],
@@ -62,6 +82,17 @@ describe('recognition suggestions', () => {
     'Guthaben 1200,00 €'
   ])('does not use long numbers or money as an unlabelled PIN: %s', (text) => {
     expect(extractCandidates(text).some((item) => item.label === 'PIN')).toBe(false)
+  })
+})
+
+describe('import identifiers', () => {
+  it('accepts barcode-only imports but rejects imports without any identifier', () => {
+    expect(isImportValid('shop', '', 'barcode-payload', 1000)).toBe(true)
+    expect(isImportValid('shop', '', '', 1000)).toBe(false)
+  })
+  it('does not synthesize barcode data from a voucher number', () => {
+    expect(barcodeStorageFields('', '')).toEqual({ barcodeValue: '', barcodeFormat: '' })
+    expect(barcodeStorageFields(' 0123456789 ', 'Code128')).toEqual({ barcodeValue: '0123456789', barcodeFormat: 'Code128' })
   })
 })
 

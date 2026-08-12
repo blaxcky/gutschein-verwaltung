@@ -5,7 +5,7 @@ import { db } from '../db'
 import type { ImportDraft, SourceFile, Voucher } from '../types'
 import { encryptBlob, encryptText } from '../lib/crypto'
 import { inspectFile, sha256, terminateImporter } from '../lib/importer'
-import { parseMoney, uid } from '../lib/logic'
+import { barcodeStorageFields, isImportValid, parseMoney, uid } from '../lib/logic'
 import { Field, Modal } from './ui'
 
 interface FileStatus { file: File; status: 'waiting' | 'processing' | 'review' | 'saved' | 'error'; message?: string }
@@ -60,18 +60,19 @@ export function ImportWizard({ initialShopId, onClose, onSaved }: ImportWizardPr
   async function saveDraft() {
     if (!draft) return
     const cents = parseMoney(form.amount)
-    if (!form.shopId || !form.number.trim() || cents === null || cents <= 0) return
+    if (cents === null || !isImportValid(form.shopId, form.number, draft.barcodeValue, cents)) return
     const sourceId = uid('source')
     const voucherId = uid('voucher')
     const secure = Boolean(settings?.pinEnabled)
     const source: SourceFile = { id: sourceId, name: draft.file.name, mimeType: draft.file.type, size: draft.file.size, hash: draft.hash, content: secure ? await encryptBlob(draft.file) : draft.file, createdAt: new Date().toISOString() }
     const now = new Date().toISOString()
+    const barcode = barcodeStorageFields(draft.barcodeValue, draft.barcodeFormat)
     const voucher: Voucher = {
       id: voucherId, shopId: form.shopId,
       number: secure ? await encryptText(form.number.trim()) : form.number.trim(),
       pin: secure ? await encryptText(form.pin.trim()) : form.pin.trim(),
-      barcodeValue: secure ? await encryptText(draft.barcodeValue || form.number.trim()) : draft.barcodeValue || form.number.trim(),
-      barcodeFormat: draft.barcodeFormat || 'QRCode', initialAmountCents: cents, remainingAmountCents: cents,
+      barcodeValue: secure ? await encryptText(barcode.barcodeValue) : barcode.barcodeValue,
+      barcodeFormat: barcode.barcodeFormat, initialAmountCents: cents, remainingAmountCents: cents,
       sourceFileId: sourceId, sourcePage: draft.sourcePage, status: 'active', confidence: draft.confidence, createdAt: now, updatedAt: now
     }
     await db.transaction('rw', db.sourceFiles, db.vouchers, async () => { await db.sourceFiles.add(source); await db.vouchers.add(voucher) })
@@ -82,7 +83,7 @@ export function ImportWizard({ initialShopId, onClose, onSaved }: ImportWizardPr
   }
 
   function cancel() { setCancelled(true); terminateImporter(); onClose() }
-  const valid = Boolean(form.shopId && form.number.trim() && parseMoney(form.amount))
+  const valid = Boolean(draft && isImportValid(form.shopId, form.number, draft.barcodeValue, parseMoney(form.amount)))
 
   return <Modal title={draft ? 'Fundstelle prüfen' : files.length ? 'Gutscheine erkennen' : 'Gutscheine importieren'} onClose={cancel}>
     {shops.length === 0 ? <div className="empty"><WarningCircle size={34} /><h2>Zuerst einen Shop anlegen</h2><p className="subtle">Schließe den Import und lege in der Shopübersicht einen Shop an.</p><button className="primary" onClick={onClose}>Zurück zu Shops</button></div> : draft ? <>
@@ -94,7 +95,7 @@ export function ImportWizard({ initialShopId, onClose, onSaved }: ImportWizardPr
       <Field label="Gutscheinnummer"><input className="input" value={form.number} onChange={(event) => setForm({ ...form, number: event.target.value })} autoComplete="off" /></Field>
       <Field label="PIN"><input className="input" value={form.pin} onChange={(event) => setForm({ ...form, pin: event.target.value })} autoComplete="off" /></Field>
       <Field label="Startguthaben"><input className="input" inputMode="decimal" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} /></Field>
-      <p className="subtle" style={{ fontSize: '.8rem' }}>{draft.barcodeValue ? `${draft.barcodeFormat} auf Seite ${draft.sourcePage} erkannt.` : 'Kein Barcode erkannt; die Nummer wird als QR-Code dargestellt.'}</p>
+      <p className="subtle" style={{ fontSize: '.8rem' }}>{draft.barcodeValue ? `${draft.barcodeFormat} auf Seite ${draft.sourcePage} erkannt.` : 'Kein scanbarer Code erkannt.'}</p>
       <div className="button-row"><button className="secondary" onClick={cancel}>Abbrechen</button><button className="primary" disabled={!valid} onClick={saveDraft}>Geprüft & speichern</button></div>
     </> : files.length ? <>
       <div className="progress-track"><div className="progress-bar" style={{ transform: `scaleX(${progress})` }} /></div><p className="subtle" style={{ marginTop: 8 }}>{progressText}</p>

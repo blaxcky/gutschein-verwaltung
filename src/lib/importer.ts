@@ -5,7 +5,7 @@ import workerUrl from 'tesseract.js/dist/worker.min.js?url'
 import coreUrl from 'tesseract.js-core/tesseract-core-simd-lstm.wasm.js?url'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import type { ImportDraft, Shop } from '../types'
-import { extractCandidates, matchShop } from './logic'
+import { extractCandidates, matchShop, selectVoucherNumber } from './logic'
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 let ocrWorker: Worker | null = null
@@ -92,12 +92,12 @@ export async function inspectFile(file: File, shops: Shop[], duplicate: boolean,
   const shop = matchShop(`${result.text} ${result.barcodeValue}`, shops)
   const candidates = extractCandidates(result.text)
   if (result.barcodeValue) candidates.unshift({ value: result.barcodeValue, label: 'Barcode', confidence: 0.96, source: `Seite ${result.sourcePage}` })
-  const number = candidates.find((candidate) => candidate.label === 'Nummer')?.value ?? result.barcodeValue
+  const number = selectVoucherNumber(result.text, result.barcodeValue)
   const pinCandidate = candidates.find((candidate) => candidate.label === 'PIN')
   const pin = pinCandidate?.value ?? ''
   const pinContribution = pinCandidate ? 0.16 * (pinCandidate.confidence / 0.88) : 0
   const confidenceLimit = result.barcodeValue ? 0.96 : pinCandidate?.source === 'Unbeschrifteter Viersteller' ? 0.62 : 0.7
-  const confidence = Math.round(100 * Math.min(confidenceLimit, (shop ? 0.18 : 0) + (number ? 0.58 : 0) + pinContribution))
+  const confidence = Math.round(100 * Math.min(confidenceLimit, (shop ? 0.18 : 0) + (number || result.barcodeValue ? 0.58 : 0) + pinContribution))
   return { file, hash, duplicate, ...result, shopId: shop?.id ?? '', number, pin, amountCents: shop?.defaultAmountCents ?? 10000, confidence, candidates }
 }
 

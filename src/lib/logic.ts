@@ -30,15 +30,27 @@ export function matchShop(text: string, shops: Shop[]): Shop | undefined {
   return best?.score ? best.shop : undefined
 }
 
+export function normalizeVoucherNumber(value: string) {
+  return value.normalize('NFKC').replace(/[^\p{L}\p{N}]/gu, '').toLocaleUpperCase('de')
+}
+
+function plausibleVoucherNumber(value: string) {
+  const normalized = normalizeVoucherNumber(value)
+  return normalized.length >= 6 && normalized.length <= 30 && /\d/.test(normalized)
+}
+
 export function extractCandidates(text: string): DetectionCandidate[] {
   const compact = text.replace(/[–—]/g, '-')
   const candidates: DetectionCandidate[] = []
   const labelled = [
     { label: 'PIN' as const, regex: /(?:\bpin(?:\s*-?\s*code)?|\bcode)\s*[:#-]?\s*([A-Z0-9-]{4,16})/gi },
-    { label: 'Nummer' as const, regex: /(?:gutschein(?:nummer)?|kartennummer|card\s*(?:no|number)|nummer)\s*[:#-]?\s*([A-Z0-9 -]{6,30})/gi }
+    { label: 'Nummer' as const, regex: /(?:\bgutscheinnummer\b|\bgutschein\s*-\s*nr\.?(?=\s|[:#-]|$)|\bkartennummer\b|\bkarten\s*-\s*nr\.?(?=\s|[:#-]|$)|\bcard\s*(?:no\.?|number)\b|\bnummer\b)\s*[:#-]?\s*([A-Z0-9](?:[A-Z0-9 \t-]{4,28}[A-Z0-9])?)/gi }
   ]
   for (const item of labelled) {
-    for (const match of compact.matchAll(item.regex)) candidates.push({ value: match[1].trim().replace(/\s{2,}/g, ' '), label: item.label, confidence: 0.88, source: 'Beschrifteter Text' })
+    for (const match of compact.matchAll(item.regex)) {
+      const value = item.label === 'Nummer' ? normalizeVoucherNumber(match[1]) : match[1].trim().replace(/\s{2,}/g, ' ')
+      if (item.label === 'PIN' || plausibleVoucherNumber(value)) candidates.push({ value, label: item.label, confidence: 0.88, source: 'Beschrifteter Text' })
+    }
   }
   if (!candidates.some((candidate) => candidate.label === 'PIN')) {
     const longNumberRanges = [...compact.matchAll(/(?<!\d)\d(?:[ \t-]*\d){4,}(?!\d)/g)]
@@ -59,11 +71,32 @@ export function extractCandidates(text: string): DetectionCandidate[] {
     const distinctPins = [...new Set(unlabelledPins)]
     if (distinctPins.length === 1) candidates.push({ value: distinctPins[0], label: 'PIN', confidence: 0.42, source: 'Unbeschrifteter Viersteller' })
   }
-  if (!candidates.some((candidate) => candidate.label === 'Nummer')) {
-    const fallback = compact.match(/\b(?:\d[ -]?){10,22}\b/)
-    if (fallback) candidates.push({ value: fallback[0].replace(/[ -]/g, ''), label: 'Nummer', confidence: 0.54, source: 'Zahlenmuster' })
+  for (const match of compact.matchAll(/(?<!\d)\d(?:[ \t-]*\d){9,29}(?!\d)/g)) {
+    const value = normalizeVoucherNumber(match[0])
+    if (plausibleVoucherNumber(value) && !candidates.some((candidate) => candidate.label === 'Nummer' && candidate.value === value)) {
+      candidates.push({ value, label: 'Nummer', confidence: 0.54, source: 'Zahlenmuster' })
+    }
   }
   return candidates
+}
+
+export function selectVoucherNumber(text: string, barcodeValue = '') {
+  const numbers = extractCandidates(text).filter((candidate) => candidate.label === 'Nummer')
+  const barcode = normalizeVoucherNumber(barcodeValue)
+  const matching = barcode ? numbers.find((candidate) => barcode.includes(normalizeVoucherNumber(candidate.value)) || normalizeVoucherNumber(candidate.value).includes(barcode)) : undefined
+  return matching?.value
+    ?? numbers.find((candidate) => candidate.source === 'Beschrifteter Text')?.value
+    ?? numbers.find((candidate) => candidate.source === 'Zahlenmuster')?.value
+    ?? ''
+}
+
+export function isImportValid(shopId: string, number: string, barcodeValue: string, amountCents: number | null) {
+  return Boolean(shopId && (number.trim() || barcodeValue.trim()) && amountCents !== null && amountCents > 0)
+}
+
+export function barcodeStorageFields(barcodeValue: string, barcodeFormat: string) {
+  const value = barcodeValue.trim()
+  return { barcodeValue: value, barcodeFormat: value ? barcodeFormat : '' }
 }
 
 export function canUndo(transaction: Transaction, all: Transaction[]) {
