@@ -53,7 +53,7 @@ export function VoucherScreen({ notify }: { notify: (message: string) => void })
     }
   }, [barcodeExpanded])
 
-  if (!voucher) return <main className="page"><p className="subtle">Gutschein wird geladen …</p></main>
+  if (!voucher) return <main className="page voucher-page"><p className="subtle">Gutschein wird geladen …</p></main>
   const latest = transactions?.find((entry) => entry.type !== 'reversal' && canUndo(entry, transactions))
 
   async function copy(value: string, label: string) { await navigator.clipboard.writeText(value); notify(`${label} kopiert.`) }
@@ -77,7 +77,7 @@ export function VoucherScreen({ notify }: { notify: (message: string) => void })
     notify('Letzte Änderung zurückgenommen.')
   }
 
-  return <><main className="page">
+  return <><main className="page voucher-page">
     <header className="page-head"><button className="back-button" onClick={() => navigate(-1)} aria-label="Zurück"><CaretLeft size={22} /></button><button className="icon-button" onClick={() => setHistoryOpen(true)} aria-label="Verlauf"><Receipt size={21} /></button></header>
     <p className="eyebrow voucher-shop-name">{shop?.name ?? 'Gutschein'}</p>
     {barcodeUrl ? <button ref={barcodeTriggerRef} type="button" className="barcode-zone barcode-trigger" onClick={() => setBarcodeExpanded(true)} aria-haspopup="dialog"><img src={barcodeUrl} alt={`${voucher.barcodeFormat || 'Barcode'} zum Scannen`} /><span className="barcode-action-hint">Zum Vergrößern antippen</span></button> : <section className="barcode-zone" aria-label="Scanbereich"><div className="barcode-fallback"><strong>{revealed.number || 'Keine Nummer hinterlegt'}</strong>{!revealed.barcode && <span>Kein scanbarer Code erkannt</span>}</div></section>}
