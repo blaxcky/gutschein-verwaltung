@@ -117,6 +117,10 @@ export function barcodeStorageFields(barcodeValue: string, barcodeFormat: string
   return { barcodeValue: value, barcodeFormat: value ? barcodeFormat : '' }
 }
 
+export function applyReimport(voucher: Voucher, fields: Pick<Voucher, 'shopId' | 'number' | 'pin' | 'barcodeValue' | 'barcodeFormat' | 'sourcePage' | 'confidence'>, updatedAt = new Date().toISOString()): Voucher {
+  return { ...voucher, ...fields, updatedAt }
+}
+
 export function canUndo(transaction: Transaction, all: Transaction[]) {
   return !all.some((entry) => entry.reversedTransactionId === transaction.id)
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowCounterClockwise, CaretLeft, Copy, Image, Minus, Receipt } from '@phosphor-icons/react'
+import { ArrowClockwise, ArrowCounterClockwise, CaretLeft, Copy, Image, Minus, Receipt } from '@phosphor-icons/react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate, useParams } from 'react-router-dom'
 import { writeBarcodeToImageFile } from '@sec-ant/zxing-wasm/writer'
@@ -9,6 +9,7 @@ import type { Transaction, Voucher } from '../types'
 import { decryptBlob, decryptText } from '../lib/crypto'
 import { applyExpense, canUndo, formatMoney, parseMoney, uid } from '../lib/logic'
 import { Field, Modal } from '../components/ui'
+import { ImportWizard } from '../components/ImportWizard'
 
 export function VoucherScreen({ notify }: { notify: (message: string) => void }) {
   const { voucherId = '' } = useParams()
@@ -23,6 +24,7 @@ export function VoucherScreen({ notify }: { notify: (message: string) => void })
   const [historyOpen, setHistoryOpen] = useState(false)
   const [sourceUrl, setSourceUrl] = useState('')
   const [barcodeExpanded, setBarcodeExpanded] = useState(false)
+  const [reimportOpen, setReimportOpen] = useState(false)
   const barcodeTriggerRef = useRef<HTMLButtonElement>(null)
   const barcodeOverlayRef = useRef<HTMLButtonElement>(null)
 
@@ -86,9 +88,11 @@ export function VoucherScreen({ notify }: { notify: (message: string) => void })
     <SecretRow label="PIN" value={revealed.pin} onCopy={() => copy(revealed.pin, 'PIN')} />
     <div className="button-row" style={{ marginTop: 22 }}><button className="primary" disabled={voucher.remainingAmountCents === 0} onClick={() => setExpenseOpen(true)}><Minus size={18} /> Ausgabe</button><button className="secondary" disabled={!latest} onClick={undo}><ArrowCounterClockwise size={18} /> Rückgängig</button></div>
     {source && <button className="secondary wide" style={{ marginTop: 10 }} onClick={showSource}><Image size={18} /> Original anzeigen</button>}
+    {source && <button className="secondary wide" style={{ marginTop: 10 }} onClick={() => setReimportOpen(true)}><ArrowClockwise size={18} /> Neu einlesen</button>}
     {expenseOpen && <ExpenseModal voucher={voucher} onClose={() => setExpenseOpen(false)} onSaved={() => { setExpenseOpen(false); notify('Ausgabe verbucht.') }} />}
     {historyOpen && <HistoryModal transactions={transactions ?? []} onClose={() => setHistoryOpen(false)} />}
     {sourceUrl && <Modal title="Originaldatei" onClose={() => { URL.revokeObjectURL(sourceUrl); setSourceUrl('') }}>{source?.mimeType === 'application/pdf' ? <iframe title="Original-PDF" src={sourceUrl} style={{ width: '100%', height: '65dvh', border: 0, borderRadius: 16 }} /> : <img src={sourceUrl} alt="Originalgutschein" style={{ width: '100%', borderRadius: 18 }} />}</Modal>}
+    {reimportOpen && source && <ImportWizard initialShopId={voucher.shopId} existingVoucher={voucher} existingSource={source} onClose={() => setReimportOpen(false)} onSaved={() => { setReimportOpen(false); notify('Gutschein wurde neu eingelesen.') }} />}
   </main>{barcodeExpanded && createPortal(<div className="barcode-overlay" role="dialog" aria-modal="true" aria-label="Vergrößerter Scan-Code"><button ref={barcodeOverlayRef} type="button" className={`barcode-overlay-close ${normalizeFormat(voucher.barcodeFormat) === 'QRCode' ? 'is-qr' : 'is-linear'}`} onClick={closeBarcodeOverlay} aria-label="Vergrößerten Scan-Code schließen"><span className="barcode-overlay-code"><img src={barcodeUrl} alt={`${voucher.barcodeFormat || 'Barcode'} vergrößert zum Scannen`} /></span><span className="barcode-overlay-hint">Zum Schließen erneut tippen</span></button></div>, document.body)}</>
 }
 

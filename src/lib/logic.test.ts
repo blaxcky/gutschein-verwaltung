@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Shop, Transaction, Voucher } from '../types'
-import { applyExpense, barcodeStorageFields, canUndo, extractCandidates, isImportValid, matchShop, parseMoney, selectVoucherNumber, sortVouchers } from './logic'
+import { applyExpense, applyReimport, barcodeStorageFields, canUndo, extractCandidates, isImportValid, matchShop, parseMoney, selectVoucherNumber, sortVouchers } from './logic'
 
 const voucher = (overrides: Partial<Voucher> = {}): Voucher => ({ id: 'v', shopId: 's', number: '123', pin: '', barcodeValue: '', barcodeFormat: '', initialAmountCents: 10000, remainingAmountCents: 10000, status: 'active', confidence: 90, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', ...overrides })
 
@@ -113,6 +113,11 @@ describe('import identifiers', () => {
   it('stores corrected fallback values and clears the format when deleted', () => {
     expect(barcodeStorageFields('0917000000009999', 'Code128')).toEqual({ barcodeValue: '0917000000009999', barcodeFormat: 'Code128' })
     expect(barcodeStorageFields('   ', 'Code128')).toEqual({ barcodeValue: '', barcodeFormat: '' })
+  })
+  it('updates recognized fields without changing balances, status or source', () => {
+    const current = voucher({ initialAmountCents: 10000, remainingAmountCents: 4200, status: 'verification_pending', sourceFileId: 'source-1' })
+    const updated = applyReimport(current, { shopId: 'new-shop', number: '20001234', pin: '9212', barcodeValue: '09171234', barcodeFormat: 'Code128', sourcePage: 2, confidence: 68 }, '2026-08-13T12:00:00Z')
+    expect(updated).toMatchObject({ shopId: 'new-shop', number: '20001234', pin: '9212', barcodeValue: '09171234', remainingAmountCents: 4200, initialAmountCents: 10000, status: 'verification_pending', sourceFileId: 'source-1', updatedAt: '2026-08-13T12:00:00Z' })
   })
 })
 
