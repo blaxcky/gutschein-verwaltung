@@ -49,6 +49,19 @@ describe('recognition suggestions', () => {
   it('keeps a plausible labelled number even when the barcode is independent', () => {
     expect(selectVoucherNumber('Gutscheinnummer: AB-123456', 'QR:independent-payload')).toBe('AB123456')
   })
+  it('keeps Lidl voucher number, printed barcode and PIN separate by position', () => {
+    const text = 'LIDL Geschenkkarte\n2000123456789012\n0917123456789012\n4826'
+    const lines = [
+      { text: '2000123456789012', confidence: 92, bbox: { x0: 30, y0: 20, x1: 170, y1: 35 } },
+      { text: '0917123456789012', confidence: 91, bbox: { x0: 30, y0: 85, x1: 170, y1: 100 } },
+      { text: '4826', confidence: 90, bbox: { x0: 70, y0: 110, x1: 115, y1: 125 } }
+    ]
+    expect(selectVoucherNumber(text, '0917123456789012', { lines, barcodeRegion: { x0: 20, y0: 42, x1: 180, y1: 78 } })).toBe('2000123456789012')
+    expect(extractCandidates(text).find((item) => item.label === 'PIN')?.value).toBe('4826')
+  })
+  it('excludes the OCR value used as the barcode from voucher-number selection', () => {
+    expect(selectVoucherNumber('0917123456789012', '0917123456789012')).toBe('')
+  })
   it.each([
     ['PIN Code: 2414', '2414'],
     ['PIN-Code: 5729', '5729'],
@@ -73,6 +86,9 @@ describe('recognition suggestions', () => {
   it('does not suggest ambiguous unlabelled four-digit values', () => {
     expect(extractCandidates('Filiale 1234\nBeleg 5678').some((item) => item.label === 'PIN')).toBe(false)
   })
+  it('does not use an instruction reference as an unlabelled PIN', () => {
+    expect(extractCandidates('Hotline 1234\nLIDL Geschenkkarte').some((item) => item.label === 'PIN')).toBe(false)
+  })
   it.each([
     'Barcode 1234567890123',
     'Gutscheinnummer 1234 5678 9012 3456',
@@ -93,6 +109,10 @@ describe('import identifiers', () => {
   it('does not synthesize barcode data from a voucher number', () => {
     expect(barcodeStorageFields('', '')).toEqual({ barcodeValue: '', barcodeFormat: '' })
     expect(barcodeStorageFields(' 0123456789 ', 'Code128')).toEqual({ barcodeValue: '0123456789', barcodeFormat: 'Code128' })
+  })
+  it('stores corrected fallback values and clears the format when deleted', () => {
+    expect(barcodeStorageFields('0917000000009999', 'Code128')).toEqual({ barcodeValue: '0917000000009999', barcodeFormat: 'Code128' })
+    expect(barcodeStorageFields('   ', 'Code128')).toEqual({ barcodeValue: '', barcodeFormat: '' })
   })
 })
 

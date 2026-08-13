@@ -71,6 +71,21 @@ export interface DetectionCandidate {
   source: string
 }
 
+export interface RecognitionBox {
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
+export interface OcrLine {
+  text: string
+  confidence: number
+  bbox: RecognitionBox
+}
+
+export type BarcodeSource = 'decoded' | 'printed-text'
+
 export interface ImportDraft {
   file: File
   hash: string
@@ -79,6 +94,7 @@ export interface ImportDraft {
   text: string
   barcodeValue: string
   barcodeFormat: string
+  barcodeSource?: BarcodeSource
   shopId: string
   number: string
   pin: string

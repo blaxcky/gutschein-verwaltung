@@ -1,4 +1,4 @@
-import type { DetectionCandidate, Shop, Transaction, Voucher } from '../types'
+import type { DetectionCandidate, OcrLine, RecognitionBox, Shop, Transaction, Voucher } from '../types'
 
 export const formatMoney = (cents: number) =>
   new Intl.NumberFormat('de-AT', { style: 'currency', currency: 'EUR' }).format(cents / 100)
@@ -65,7 +65,8 @@ export function extractCandidates(text: string): DetectionCandidate[] {
         const after = compact.slice(end, end + 16)
         const moneyBefore = /(?:€|\b(?:eur|euro)|\b(?:betrag|wert|guthaben)\s*:?)[ \t]*$/i.test(before)
         const moneyAfter = /^(?:[.,]\d{2})?[ \t]*(?:€|(?:eur|euro)\b)/i.test(after)
-        return !moneyBefore && !moneyAfter
+        const referenceBefore = /\b(?:filiale|beleg|kasse|artikel|transaktion|telefon|hotline|plz|schritt|datum|uhr)\s*(?:nr\.?|nummer)?\s*[:#-]?\s*$/i.test(before)
+        return !moneyBefore && !moneyAfter && !referenceBefore
       })
       .map((match) => match[0])
     const distinctPins = [...new Set(unlabelledPins)]
@@ -80,11 +81,28 @@ export function extractCandidates(text: string): DetectionCandidate[] {
   return candidates
 }
 
-export function selectVoucherNumber(text: string, barcodeValue = '') {
-  const numbers = extractCandidates(text).filter((candidate) => candidate.label === 'Nummer')
+interface VoucherNumberLayout {
+  lines: OcrLine[]
+  barcodeRegion?: RecognitionBox
+}
+
+export function selectVoucherNumber(text: string, barcodeValue = '', layout?: VoucherNumberLayout) {
   const barcode = normalizeVoucherNumber(barcodeValue)
+  const numbers = extractCandidates(text).filter((candidate) => candidate.label === 'Nummer' && normalizeVoucherNumber(candidate.value) !== barcode)
+  const above = layout?.barcodeRegion ? layout.lines.flatMap((line) => {
+    const region = layout.barcodeRegion!
+    const value = normalizeVoucherNumber(line.text)
+    const lineHeight = line.bbox.y1 - line.bbox.y0
+    const gap = region.y0 - line.bbox.y1
+    const horizontalOverlap = Math.max(0, Math.min(line.bbox.x1, region.x1) - Math.max(line.bbox.x0, region.x0))
+    const overlaps = horizontalOverlap / Math.max(1, Math.min(line.bbox.x1 - line.bbox.x0, region.x1 - region.x0))
+    return plausibleVoucherNumber(value) && value !== barcode && gap >= -lineHeight * 0.25 && gap <= Math.max(160, lineHeight * 5) && overlaps >= 0.35
+      ? [{ value, gap: Math.max(0, gap) }]
+      : []
+  }).sort((a, b) => a.gap - b.gap)[0]?.value : undefined
   const matching = barcode ? numbers.find((candidate) => barcode.includes(normalizeVoucherNumber(candidate.value)) || normalizeVoucherNumber(candidate.value).includes(barcode)) : undefined
-  return matching?.value
+  return above
+    ?? matching?.value
     ?? numbers.find((candidate) => candidate.source === 'Beschrifteter Text')?.value
     ?? numbers.find((candidate) => candidate.source === 'Zahlenmuster')?.value
     ?? ''

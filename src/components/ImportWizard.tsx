@@ -24,13 +24,13 @@ export function ImportWizard({ initialShopId, onClose, onSaved }: ImportWizardPr
   const [progress, setProgress] = useState(0)
   const [progressText, setProgressText] = useState('Vorbereitung')
   const [cancelled, setCancelled] = useState(false)
-  const [form, setForm] = useState({ shopId: '', number: '', pin: '', amount: '100,00' })
+  const [form, setForm] = useState({ shopId: '', number: '', pin: '', barcodeValue: '', amount: '100,00' })
   const running = useRef(false)
 
   useEffect(() => () => { terminateImporter(); if (draft?.previewUrl) URL.revokeObjectURL(draft.previewUrl) }, [draft?.previewUrl])
   useEffect(() => {
     if (!draft) return
-    setForm({ shopId: draft.shopId, number: draft.number, pin: draft.pin, amount: (draft.amountCents / 100).toFixed(2).replace('.', ',') })
+    setForm({ shopId: draft.shopId, number: draft.number, pin: draft.pin, barcodeValue: draft.barcodeValue, amount: (draft.amountCents / 100).toFixed(2).replace('.', ',') })
   }, [draft])
 
   async function select(selected: FileList | null) {
@@ -60,13 +60,13 @@ export function ImportWizard({ initialShopId, onClose, onSaved }: ImportWizardPr
   async function saveDraft() {
     if (!draft) return
     const cents = parseMoney(form.amount)
-    if (cents === null || !isImportValid(form.shopId, form.number, draft.barcodeValue, cents)) return
+    if (cents === null || !isImportValid(form.shopId, form.number, form.barcodeValue, cents)) return
     const sourceId = uid('source')
     const voucherId = uid('voucher')
     const secure = Boolean(settings?.pinEnabled)
     const source: SourceFile = { id: sourceId, name: draft.file.name, mimeType: draft.file.type, size: draft.file.size, hash: draft.hash, content: secure ? await encryptBlob(draft.file) : draft.file, createdAt: new Date().toISOString() }
     const now = new Date().toISOString()
-    const barcode = barcodeStorageFields(draft.barcodeValue, draft.barcodeFormat)
+    const barcode = barcodeStorageFields(form.barcodeValue, draft.barcodeFormat)
     const voucher: Voucher = {
       id: voucherId, shopId: form.shopId,
       number: secure ? await encryptText(form.number.trim()) : form.number.trim(),
@@ -83,7 +83,7 @@ export function ImportWizard({ initialShopId, onClose, onSaved }: ImportWizardPr
   }
 
   function cancel() { setCancelled(true); terminateImporter(); onClose() }
-  const valid = Boolean(draft && isImportValid(form.shopId, form.number, draft.barcodeValue, parseMoney(form.amount)))
+  const valid = Boolean(draft && isImportValid(form.shopId, form.number, form.barcodeValue, parseMoney(form.amount)))
 
   return <Modal title={draft ? 'Fundstelle prüfen' : files.length ? 'Gutscheine erkennen' : 'Gutscheine importieren'} onClose={cancel}>
     {shops.length === 0 ? <div className="empty"><WarningCircle size={34} /><h2>Zuerst einen Shop anlegen</h2><p className="subtle">Schließe den Import und lege in der Shopübersicht einen Shop an.</p><button className="primary" onClick={onClose}>Zurück zu Shops</button></div> : draft ? <>
@@ -94,8 +94,10 @@ export function ImportWizard({ initialShopId, onClose, onSaved }: ImportWizardPr
       <Field label="Shop"><select className="input" value={form.shopId} onChange={(event) => setForm({ ...form, shopId: event.target.value })}><option value="">Shop wählen</option>{shops.map((shop) => <option key={shop.id} value={shop.id}>{shop.name}</option>)}</select></Field>
       <Field label="Gutscheinnummer"><input className="input" value={form.number} onChange={(event) => setForm({ ...form, number: event.target.value })} autoComplete="off" /></Field>
       <Field label="PIN"><input className="input" value={form.pin} onChange={(event) => setForm({ ...form, pin: event.target.value })} autoComplete="off" /></Field>
+      <Field label="Barcode-Inhalt"><input className="input" value={form.barcodeValue} onChange={(event) => setForm({ ...form, barcodeValue: event.target.value })} autoComplete="off" spellCheck={false} /></Field>
+      {draft.barcodeSource === 'printed-text' && <div className="warning"><strong>Barcode aus gedruckter Ziffernfolge abgeleitet.</strong><br />Der Strichcode konnte technisch nicht gelesen werden. Bitte Inhalt prüfen, korrigieren oder löschen.</div>}
       <Field label="Startguthaben"><input className="input" inputMode="decimal" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} /></Field>
-      <p className="subtle" style={{ fontSize: '.8rem' }}>{draft.barcodeValue ? `${draft.barcodeFormat} auf Seite ${draft.sourcePage} erkannt.` : 'Kein scanbarer Code erkannt.'}</p>
+      <p className="subtle" style={{ fontSize: '.8rem' }}>{form.barcodeValue ? `${draft.barcodeFormat} auf Seite ${draft.sourcePage}${draft.barcodeSource === 'decoded' ? ' technisch erkannt' : ' vorgeschlagen'}.` : 'Kein Barcode-Inhalt hinterlegt.'}</p>
       <div className="button-row"><button className="secondary" onClick={cancel}>Abbrechen</button><button className="primary" disabled={!valid} onClick={saveDraft}>Geprüft & speichern</button></div>
     </> : files.length ? <>
       <div className="progress-track"><div className="progress-bar" style={{ transform: `scaleX(${progress})` }} /></div><p className="subtle" style={{ marginTop: 8 }}>{progressText}</p>
